@@ -3,12 +3,48 @@
     <head>
         <meta charset="utf-8" />
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
         <script src="https://aframe.io/releases/1.0.4/aframe.min.js"></script>
         <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
         <script src="https://raw.githack.com/donmccurdy/aframe-extras/master/dist/aframe-extras.loaders.min.js"></script>
+        
+        <style>
+            /* 進入畫面 UI 樣式 */
+            #ui-container {
+                position: absolute;
+                top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0, 0, 0, 0.8);
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                z-index: 9999;
+                color: white;
+                font-family: sans-serif;
+            }
+            #start-btn {
+                background: #ffffff;
+                color: #000000;
+                border: none;
+                padding: 15px 40px;
+                font-size: 20px;
+                font-weight: bold;
+                border-radius: 30px;
+                cursor: pointer;
+                margin-top: 20px;
+                box-shadow: 0 4px 10px rgba(255,255,255,0.3);
+            }
+        </style>
     </head>
 
     <body style="margin: 0; overflow: hidden;">
+        
+        <div id="ui-container">
+            <h2>準備好體驗 AR 了嗎？</h2>
+            <p>請允許使用「相機」與「位置」權限</p>
+            <button id="start-btn">進入 AR 體驗</button>
+        </div>
+
         <a-scene
             renderer="logarithmicDepthBuffer: true;"
             embedded
@@ -23,7 +59,8 @@
             </a-assets>
 
             <a-entity
-                gps-entity-place="latitude: 25.018717106515847; longitude: 121.51653897017238;"
+                id="ar-wrapper"
+                gps-entity-place="latitude: 0; longitude: 0;"
                 animation="property: rotation; to: 0 360 0; loop: true; dur: 10000; easing: linear;"
             >
                 <a-entity
@@ -37,5 +74,42 @@
 
             <a-camera gps-camera rotation-reader></a-camera>
         </a-scene>
+
+        <script>
+            // 將自動執行改為按鈕點擊觸發
+            document.getElementById('start-btn').addEventListener('click', () => {
+                
+                // 隱藏 UI 介面
+                document.getElementById('ui-container').style.display = 'none';
+
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            const lat = position.coords.latitude;
+                            const lon = position.coords.longitude;
+                            
+                            // 取得目標物件並動態注入當前座標
+                            const arWrapper = document.getElementById('ar-wrapper');
+                            arWrapper.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lon};`);
+                            
+                            console.log(`動態定位成功！基準點設定於：${lat}, ${lon}`);
+                        },
+                        (err) => {
+                            alert("無法取得 GPS 定位，請確認您已在手機設定與瀏覽器中允許使用位置權限！");
+                            console.error("GPS 取得失敗:", err);
+                            // 若失敗可讓 UI 重新顯示以便重試
+                            document.getElementById('ui-container').style.display = 'flex';
+                        },
+                        {
+                            enableHighAccuracy: true,
+                            maximumAge: 0,
+                            timeout: 10000
+                        }
+                    );
+                } else {
+                    alert("您的瀏覽器不支援地理定位功能。");
+                }
+            });
+        </script>
     </body>
 </html>
