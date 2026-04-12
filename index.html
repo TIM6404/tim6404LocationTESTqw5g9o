@@ -9,7 +9,6 @@
         <script src="https://raw.githack.com/donmccurdy/aframe-extras/master/dist/aframe-extras.loaders.min.js"></script>
         
         <style>
-            /* 進入畫面 UI 樣式 */
             #ui-container {
                 position: absolute;
                 top: 0; left: 0; width: 100%; height: 100%;
@@ -41,7 +40,7 @@
         
         <div id="ui-container">
             <h2>準備好體驗 AR 了嗎？</h2>
-            <p>請允許使用「相機」與「位置」權限</p>
+            <p>請允許使用「相機」權限</p>
             <button id="start-btn">進入 AR 體驗</button>
         </div>
 
@@ -52,63 +51,39 @@
             arjs="sourceType: webcam; debugUIEnabled: false;"
         >
             <a-assets>
-                <a-asset-item
-                    id="animated-asset"
-                    src="assets/asset.glb"
-                ></a-asset-item>
+                <a-asset-item id="animated-asset" src="assets/asset.glb"></a-asset-item>
+                <audio id="bg-music" src="Sandungueo_sin_freno.mp3" preload="auto" loop="true"></audio>
             </a-assets>
 
             <a-entity
                 id="ar-wrapper"
-                gps-entity-place="latitude: 0; longitude: 0;"
+                position="0 0 -5"
                 animation="property: rotation; to: 0 360 0; loop: true; dur: 10000; easing: linear;"
             >
                 <a-entity
                     gltf-model="#animated-asset"
                     animation-mixer="loop: repeat"
-                    scale="3 3 3"
+                    scale="0.1 0.1 0.1"
                     position="5 0 0"
-                    rotation="0 -90 0"
+                    rotation="15 -90 0"
                 ></a-entity>
             </a-entity>
 
-            <a-camera gps-camera rotation-reader></a-camera>
+            <a-camera look-controls></a-camera>
         </a-scene>
 
         <script>
-            // 將自動執行改為按鈕點擊觸發
             document.getElementById('start-btn').addEventListener('click', () => {
-                
-                // 隱藏 UI 介面
+                // 1. 隱藏 UI 介面
                 document.getElementById('ui-container').style.display = 'none';
 
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(
-                        (position) => {
-                            const lat = position.coords.latitude;
-                            const lon = position.coords.longitude;
-                            
-                            // 取得目標物件並動態注入當前座標
-                            const arWrapper = document.getElementById('ar-wrapper');
-                            arWrapper.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lon};`);
-                            
-                            console.log(`動態定位成功！基準點設定於：${lat}, ${lon}`);
-                        },
-                        (err) => {
-                            alert("無法取得 GPS 定位，請確認您已在手機設定與瀏覽器中允許使用位置權限！");
-                            console.error("GPS 取得失敗:", err);
-                            // 若失敗可讓 UI 重新顯示以便重試
-                            document.getElementById('ui-container').style.display = 'flex';
-                        },
-                        {
-                            enableHighAccuracy: true,
-                            maximumAge: 0,
-                            timeout: 10000
-                        }
-                    );
-                } else {
-                    alert("您的瀏覽器不支援地理定位功能。");
-                }
+                // 2. 瞬間播放音樂！(因為不需要等待 GPS 定位了)
+                const bgMusic = document.getElementById('bg-music');
+                bgMusic.play().catch(err => {
+                    console.error("音樂播放失敗:", err);
+                });
+                
+                console.log("AR 啟動成功！模型已固定於相機前方。");
             });
         </script>
     </body>
