@@ -1,42 +1,54 @@
 <!doctype html>
-<html lang="zh-Hant">
+<html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
     <title>Ultimate AR Location</title>
 
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar-nft.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v6.1.1/dist/aframe-extras.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
 
     <style>
         :root { --cyan: #00ffe7; --dark: #020c14; }
-        body { margin: 0; overflow: hidden; background: var(--dark); font-family: sans-serif; }
+        body { margin: 0; overflow: hidden; background: var(--dark); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
         #overlay {
             position: fixed; inset: 0; z-index: 9999;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             background: rgba(2, 12, 20, 0.95); color: white; text-align: center;
+            backdrop-filter: blur(5px);
         }
+        #overlay h2 { margin-bottom: 10px; color: var(--cyan); }
+        #overlay p { margin-bottom: 30px; font-size: 0.9rem; opacity: 0.8; }
         #start-btn {
-            padding: 20px 40px; font-size: 1.2rem; background: transparent;
+            padding: 15px 35px; font-size: 1.2rem; background: rgba(0, 255, 231, 0.1);
             border: 2px solid var(--cyan); color: var(--cyan); border-radius: 50px;
-            cursor: pointer; letter-spacing: 2px;
+            cursor: pointer; letter-spacing: 2px; transition: all 0.3s;
         }
+        #start-btn:active { background: var(--cyan); color: var(--dark); }
+
         #status-hud {
-            position: fixed; top: 10px; left: 10px; z-index: 1000;
-            background: rgba(0,0,0,0.7); color: var(--cyan); padding: 8px;
-            font-size: 10px; border-radius: 4px; pointer-events: none;
+            position: fixed; top: 15px; left: 15px; z-index: 1000;
+            background: rgba(0, 0, 0, 0.75); color: var(--cyan); 
+            padding: 12px; font-size: 12px; border-radius: 8px; 
+            border-left: 3px solid var(--cyan); pointer-events: none;
+            line-height: 1.5;
         }
     </style>
 </head>
 
 <body>
-    <div id="status-hud">等待初始化...</div>
+    <div id="status-hud">
+        Status: Waiting for confirmation...<br>
+        Latitude: ---<br>
+        Longitude: ---
+    </div>
 
     <div id="overlay">
-        <h2>AR GPS 定位系統</h2>
-        <p>請前往戶外空曠處以獲得最佳體驗</p>
-        <button id="start-btn">開啟 AR 體驗</button>
+        <h2>Location Permission</h2>
+        <p>Please allow location access to place virtual objects in the real world.<br>Exclusive audio and 3D animations will play upon entry.</p>
+        <button id="start-btn">Confirm & Start AR</button>
     </div>
 
     <a-scene
@@ -45,7 +57,7 @@
         arjs="sourceType: webcam; debugUIEnabled: false; trackingMethod: best;">
         
         <a-assets>
-            <a-asset-item id="model" src="asset.glb"></a-asset-item>
+            <a-asset-item id="model" src="assets/asset.glb"></a-asset-item>
         </a-assets>
 
         <a-entity id="ar-model-container"></a-entity>
@@ -53,7 +65,7 @@
         <a-camera gps-camera rotation-reader></a-camera>
     </a-scene>
 
-    <audio id="bgm" src="Sandungueo_sin_freno.mp3" loop preload="auto"></audio>
+    <audio id="bgm" src="assets/Sandungueo_sin_freno.mp3" loop preload="auto"></audio>
 
     <script>
         const startBtn = document.getElementById('start-btn');
@@ -63,45 +75,51 @@
         const container = document.getElementById('ar-model-container');
 
         startBtn.addEventListener('click', async () => {
-            // 1. 處理 iOS 權限
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 try {
-                    await DeviceOrientationEvent.requestPermission();
+                    const permissionState = await DeviceOrientationEvent.requestPermission();
+                    if (permissionState !== 'granted') {
+                        alert('Sensor permission is required to experience AR features.');
+                        return;
+                    }
                 } catch (e) {
-                    console.error("感測器權限遭拒");
+                    console.warn("Sensor permission request failed or not supported:", e);
                 }
             }
 
-            // 2. 啟動音訊 (需使用者點擊觸發)
-            bgm.play().catch(e => console.log("音訊自動播放受阻"));
+            bgm.play().catch(e => console.log("Audio playback blocked by browser", e));
 
-            // 3. 隱藏覆蓋層
             overlay.style.display = 'none';
-            hud.innerText = "正在搜尋 GPS 訊號...";
+            hud.innerHTML = "Status: Searching for GPS signal...<br>Latitude: Loading...<br>Longitude: Loading...";
 
-            // 4. 定位邏輯
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const { latitude, longitude, accuracy } = position.coords;
-                    hud.innerText = `GPS 已鎖定 (精度: ${Math.round(accuracy)}m)`;
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const latitude = position.coords.latitude;
+                        const longitude = position.coords.longitude;
+                        const accuracy = position.coords.accuracy;
 
-                    // 偏移量：將模型放在使用者北方約 3 公尺處 (避免重疊)
-                    const offsetLat = latitude + 0.000027; 
-                    
-                    const modelEntity = document.createElement('a-entity');
-                    modelEntity.setAttribute('gltf-model', '#model');
-                    modelEntity.setAttribute('gps-entity-place', `latitude: ${offsetLat}; longitude: ${longitude};`);
-                    modelEntity.setAttribute('scale', '2 2 2');
-                    modelEntity.setAttribute('animation-mixer', ''); // 執行動畫腳本
+                        hud.innerHTML = `Status: GPS Locked (Accuracy: ${Math.round(accuracy)}m)<br>Latitude: ${latitude.toFixed(6)}<br>Longitude: ${longitude.toFixed(6)}`;
 
-                    container.appendChild(modelEntity);
-                },
-                (err) => {
-                    hud.innerText = "GPS 定位失敗，請確認是否開啟權限";
-                    console.error(err);
-                },
-                { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
-            );
+                        const offsetLat = latitude + 0.000045; 
+                        
+                        const modelEntity = document.createElement('a-entity');
+                        modelEntity.setAttribute('gltf-model', '#model');
+                        modelEntity.setAttribute('gps-entity-place', `latitude: ${offsetLat}; longitude: ${longitude};`);
+                        modelEntity.setAttribute('scale', '2 2 2');
+                        modelEntity.setAttribute('animation-mixer', 'loop: repeat');
+
+                        container.appendChild(modelEntity);
+                    },
+                    (err) => {
+                        hud.innerHTML = `Status: Location Failed<br>Error: ${err.message}`;
+                        console.error("GPS Location Error:", err);
+                    },
+                    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+                );
+            } else {
+                hud.innerHTML = "Status: Device does not support GPS";
+            }
         });
     </script>
 </body>
