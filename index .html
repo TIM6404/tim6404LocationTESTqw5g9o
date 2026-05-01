@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="zh-Hant">
+<html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-    <title>終極AR位置體驗</title>
+    <title>Ultimate AR Location Experience</title>
 
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
@@ -21,13 +21,29 @@
         }
         #overlay h2 { margin-bottom: 10px; color: var(--cyan); font-size: 1.8rem; }
         #overlay p { margin-bottom: 30px; font-size: 0.95rem; opacity: 0.8; line-height: 1.6; }
-        #start-btn {
-            padding: 15px 35px; font-size: 1.1rem; background: rgba(0, 255, 231, 0.1);
-            border: 2px solid var(--cyan); color: var(--cyan); border-radius: 50px;
-            cursor: pointer; letter-spacing: 2px; transition: all 0.3s; font-weight: bold;
+        
+        #button-container {
+            display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;
         }
-        #start-btn:active { background: var(--cyan); color: var(--dark); }
+        
+        #start-btn, #disagree-btn {
+            padding: 15px 35px; font-size: 1.1rem; border-radius: 50px;
+            cursor: pointer; letter-spacing: 2px; transition: all 0.3s; font-weight: bold;
+            border: 2px solid var(--cyan); min-width: 150px;
+        }
+        
+        #start-btn {
+            background: rgba(0, 255, 231, 0.1); color: var(--cyan);
+        }
         #start-btn:hover { background: rgba(0, 255, 231, 0.2); }
+        #start-btn:active { background: var(--cyan); color: var(--dark); }
+
+        #disagree-btn {
+            background: rgba(255, 50, 50, 0.1); color: #ff5050;
+            border-color: #ff5050;
+        }
+        #disagree-btn:hover { background: rgba(255, 50, 50, 0.2); }
+        #disagree-btn:active { background: #ff5050; color: white; }
 
         #status-hud {
             position: fixed; top: 15px; left: 15px; z-index: 1000;
@@ -38,38 +54,59 @@
         }
 
         #music-btn {
-            position: fixed; bottom: 20px; right: 20px; z-index: 1000;
+            position: fixed; bottom: 30px; right: 30px; z-index: 1000;
             background: rgba(0, 255, 231, 0.1); border: 2px solid var(--cyan);
-            color: var(--cyan); width: 60px; height: 60px; border-radius: 50%;
-            font-size: 1.5rem; cursor: pointer; transition: all 0.3s;
+            color: var(--cyan); width: 70px; height: 70px; border-radius: 50%;
+            font-size: 1.8rem; cursor: pointer; transition: all 0.3s;
             display: none; align-items: center; justify-content: center;
+            box-shadow: 0 0 20px rgba(0, 255, 231, 0.3);
         }
-        #music-btn:hover { background: rgba(0, 255, 231, 0.2); transform: scale(1.1); }
+        #music-btn:hover { 
+            background: rgba(0, 255, 231, 0.2); 
+            transform: scale(1.15);
+            box-shadow: 0 0 30px rgba(0, 255, 231, 0.5);
+        }
         #music-btn:active { background: var(--cyan); color: var(--dark); }
 
         #debug-log {
-            position: fixed; bottom: 100px; right: 20px; z-index: 999;
+            position: fixed; bottom: 120px; right: 30px; z-index: 999;
             background: rgba(0, 0, 0, 0.75); color: #00ff00;
             padding: 10px; font-size: 11px; border-radius: 5px;
             border: 1px solid #00ff00; max-width: 300px; max-height: 150px;
             overflow-y: auto; display: none; font-family: monospace;
             pointer-events: none; line-height: 1.4;
         }
+
+        #accuracy-indicator {
+            position: fixed; top: 15px; right: 15px; z-index: 1000;
+            background: rgba(0, 0, 0, 0.75); color: var(--cyan);
+            padding: 12px; font-size: 12px; border-radius: 8px;
+            border-left: 3px solid var(--cyan); pointer-events: none;
+            font-family: monospace; display: none; text-align: right;
+        }
     </style>
 </head>
 
 <body>
     <div id="status-hud">
-        狀態: 等待確認...<br>
-        緯度: ---<br>
-        經度: ---<br>
-        精度: ---
+        Status: Waiting for confirmation...<br>
+        Latitude: ---<br>
+        Longitude: ---<br>
+        Accuracy: ---
+    </div>
+
+    <div id="accuracy-indicator">
+        GPS Signal Strength<br>
+        <span id="signal-bar">▁▁▁</span>
     </div>
 
     <div id="overlay">
-        <h2>🌍 位置權限申請</h2>
-        <p>請允許位置存取權限<br>以在真實世界中放置虛擬物體<br>進入後將播放專屬音樂和3D動畫</p>
-        <button id="start-btn">✓ 確認並啟動 AR</button>
+        <h2>🌍 Location Permission</h2>
+        <p>Please allow location access to place virtual objects in the real world.<br>Exclusive audio and 3D animations will play upon entry.</p>
+        <div id="button-container">
+            <button id="start-btn">✓ Confirm & Start AR</button>
+            <button id="disagree-btn">✗ Decline</button>
+        </div>
     </div>
 
     <button id="music-btn">🎵</button>
@@ -92,7 +129,7 @@
     <audio id="bgm" src="assets/Sandungueo_sin_freno.mp3" loop preload="auto"></audio>
 
     <script>
-        // ===== 調試日誌功能 =====
+        // ===== Debug Log Function =====
         const debugLog = document.getElementById('debug-log');
         const logs = [];
         
@@ -103,82 +140,110 @@
             debugLog.innerHTML = logs.join('<br>');
         }
 
-        // ===== 核心變數 =====
+        // ===== Core Variables =====
         const startBtn = document.getElementById('start-btn');
+        const disagreeBtn = document.getElementById('disagree-btn');
         const overlay = document.getElementById('overlay');
         const hud = document.getElementById('status-hud');
         const bgm = document.getElementById('bgm');
         const container = document.getElementById('ar-model-container');
         const musicBtn = document.getElementById('music-btn');
+        const accuracyIndicator = document.getElementById('accuracy-indicator');
+        const signalBar = document.getElementById('signal-bar');
         
         let isModelPlaced = false;
         let watchId = null;
 
-        // ===== 音樂按鈕控制 =====
+        // ===== Disagree Button =====
+        disagreeBtn.addEventListener('click', () => {
+            alert('You declined AR access. Reload the page to try again.');
+            overlay.style.opacity = '0.5';
+            startBtn.disabled = true;
+            disagreeBtn.disabled = true;
+            addLog("User declined location access");
+        });
+
+        // ===== Music Button Control =====
         musicBtn.addEventListener('click', () => {
             if (bgm.paused) {
-                bgm.play().catch(e => console.log("音樂播放被阻止", e));
+                bgm.play().catch(e => console.log("Music playback blocked", e));
                 musicBtn.textContent = '⏸';
+                musicBtn.style.boxShadow = '0 0 30px rgba(0, 255, 100, 0.5)';
             } else {
                 bgm.pause();
                 musicBtn.textContent = '🎵';
+                musicBtn.style.boxShadow = '0 0 20px rgba(0, 255, 231, 0.3)';
             }
         });
 
-        // ===== 主要啟動函式 =====
-        startBtn.addEventListener('click', async () => {
-            addLog("使用者點擊開始按鈕");
+        // ===== Update Signal Strength =====
+        function updateSignalBar(accuracy) {
+            let bars = '▁▁▁';
+            if (accuracy < 10) bars = '▃▃▃';
+            else if (accuracy < 20) bars = '▄▄▄';
+            else if (accuracy < 50) bars = '▅▅▅';
+            else if (accuracy < 100) bars = '▆▆▆';
+            signalBar.textContent = bars;
+        }
 
-            // 請求感應器權限 (iOS必需)
+        // ===== Main Startup Function =====
+        startBtn.addEventListener('click', async () => {
+            addLog("User clicked Confirm & Start AR");
+
+            // Request sensor permissions (iOS required)
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 try {
-                    addLog("請求陀螺儀權限...");
+                    addLog("Requesting gyroscope permission...");
                     const permissionState = await DeviceOrientationEvent.requestPermission();
                     if (permissionState !== 'granted') {
-                        alert('需要感應器權限才能體驗AR功能');
-                        addLog("陀螺儀權限被拒絕");
+                        alert('Sensor permission is required to experience AR features.');
+                        addLog("Gyroscope permission denied");
                         return;
                     }
-                    addLog("陀螺儀權限已授予");
+                    addLog("Gyroscope permission granted");
                 } catch (e) {
-                    addLog("陀螺儀權限請求失敗或不支援: " + e.message);
-                    console.warn("感應器權限請求失敗", e);
+                    addLog("Gyroscope permission request failed or not supported: " + e.message);
+                    console.warn("Sensor permission request failed", e);
                 }
             }
 
-            // 隱藏覆蓋層
+            // Hide overlay
             overlay.style.display = 'none';
             musicBtn.style.display = 'flex';
-            addLog("覆蓋層已隱藏，音樂按鈕已顯示");
+            accuracyIndicator.style.display = 'block';
+            addLog("Overlay hidden, music button and accuracy indicator displayed");
 
-            // 播放背景音樂
+            // Play background music
             bgm.play().catch(e => {
-                addLog("音樂播放被瀏覽器阻止: " + e.message);
-                console.log("音樂播放被瀏覽器阻止", e);
+                addLog("Music playback blocked by browser: " + e.message);
+                console.log("Music playback blocked", e);
             });
 
-            // 更新HUD狀態
-            hud.innerHTML = "狀態: 正在搜尋GPS訊號...<br>緯度: 載入中...<br>經度: 載入中...<br>精度: 載入中...";
-            addLog("開始獲取GPS位置");
+            // Update HUD status
+            hud.innerHTML = "Status: Searching for GPS signal...<br>Latitude: Loading...<br>Longitude: Loading...<br>Accuracy: Loading...";
+            addLog("Starting GPS location retrieval");
 
-            // 檢查地理定位支援
+            // Check geolocation support
             if ("geolocation" in navigator) {
-                // 使用 watchPosition 連續追蹤位置
+                // Use watchPosition for continuous tracking
                 watchId = navigator.geolocation.watchPosition(
                     (position) => {
                         const latitude = position.coords.latitude;
                         const longitude = position.coords.longitude;
                         const accuracy = position.coords.accuracy;
 
-                        addLog(`GPS已鎖定 - 緯度: ${latitude.toFixed(6)}, 經度: ${longitude.toFixed(6)}, 精度: ${Math.round(accuracy)}m`);
-                        console.log("GPS位置已取得:", { latitude, longitude, accuracy });
+                        addLog(`GPS Locked - Lat: ${latitude.toFixed(6)}, Lon: ${longitude.toFixed(6)}, Accuracy: ${Math.round(accuracy)}m`);
+                        console.log("GPS location obtained:", { latitude, longitude, accuracy });
 
-                        // 更新HUD顯示
-                        hud.innerHTML = `狀態: GPS已鎖定 (精度: ${Math.round(accuracy)}m)<br>緯度: ${latitude.toFixed(6)}<br>經度: ${longitude.toFixed(6)}<br>精度: ${accuracy.toFixed(1)}m`;
+                        // Update HUD display
+                        hud.innerHTML = `Status: GPS Locked (Accuracy: ${Math.round(accuracy)}m)<br>Latitude: ${latitude.toFixed(6)}<br>Longitude: ${longitude.toFixed(6)}<br>Accuracy: ${accuracy.toFixed(1)}m`;
 
-                        // 只放置一次模型
+                        // Update signal strength bar
+                        updateSignalBar(accuracy);
+
+                        // Place model only once
                         if (!isModelPlaced) {
-                            const offsetLat = latitude + 0.000045; // 北偏微小距離
+                            const offsetLat = latitude + 0.000045; // Slight north offset
                             
                             const modelEntity = document.createElement('a-entity');
                             modelEntity.setAttribute('gltf-model', '#model');
@@ -191,55 +256,55 @@
                             container.appendChild(modelEntity);
                             isModelPlaced = true;
 
-                            addLog("3D模型已成功放置於GPS位置");
-                            console.log("3D模型已放置");
+                            addLog("3D model successfully placed at GPS location");
+                            console.log("3D model placed");
                         }
                     },
                     (err) => {
-                        addLog(`GPS定位失敗: ${err.message}`);
-                        hud.innerHTML = `狀態: 位置定位失敗<br>錯誤: ${err.message}<br>代碼: ${err.code}`;
-                        console.error("GPS定位錯誤:", err);
+                        addLog(`GPS location failed: ${err.message}`);
+                        hud.innerHTML = `Status: Location Locating Failed<br>Error: ${err.message}<br>Code: ${err.code}`;
+                        console.error("GPS location error:", err);
 
-                        // 特定錯誤說明
+                        // Specific error messages
                         if (err.code === 1) {
-                            alert('請允許位置存取權限');
+                            alert('Please allow location access permission');
                         } else if (err.code === 2) {
-                            alert('無法取得位置訊號，請確保GPS已啟用');
+                            alert('Unable to obtain location signal. Please ensure GPS is enabled.');
                         } else if (err.code === 3) {
-                            alert('位置請求逾時，請重試');
+                            alert('Location request timed out. Please try again.');
                         }
                     },
                     { 
-                        enableHighAccuracy: true,      // 使用高精度定位
-                        timeout: 30000,                // 30秒超時
-                        maximumAge: 0                  // 不使用快取位置
+                        enableHighAccuracy: true,      // Use high-accuracy positioning
+                        timeout: 30000,                // 30 second timeout
+                        maximumAge: 0                  // Don't use cached location
                     }
                 );
             } else {
-                hud.innerHTML = "狀態: 裝置不支援GPS功能";
-                addLog("裝置不支援地理定位");
-                alert('您的裝置不支援GPS功能');
+                hud.innerHTML = "Status: Device does not support GPS functionality";
+                addLog("Device does not support geolocation");
+                alert('Your device does not support GPS functionality');
             }
         });
 
-        // ===== 模型載入錯誤檢查 =====
+        // ===== Model Loading Error Check =====
         const sceneEl = document.querySelector('a-scene');
         sceneEl.addEventListener('model-loaded', () => {
-            addLog("3D模型已成功載入");
+            addLog("3D model successfully loaded");
         });
         sceneEl.addEventListener('model-error', (e) => {
-            addLog("3D模型載入失敗: " + e.detail.error);
+            addLog("3D model loading failed: " + e.detail.error);
         });
 
-        // 頁面卸載時停止追蹤
+        // Stop tracking when page unloads
         window.addEventListener('beforeunload', () => {
             if (watchId !== null) {
                 navigator.geolocation.clearWatch(watchId);
             }
         });
 
-        // 啟動時的初始化日誌
-        addLog("頁面已載入，等待使用者互動");
+        // Initial log on startup
+        addLog("Page loaded, awaiting user interaction");
     </script>
 </body>
 </html>
